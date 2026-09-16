@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test:e2e": "node scripts/verify.mjs",
+    "test:loader": "node scripts/verify-loader.mjs",
     "test:motion": "node scripts/verify-motion.mjs",
     "test:features": "node scripts/verify-features.mjs",
     "audit:ui": "node scripts/audit.mjs",

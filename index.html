@@ -17,8 +17,210 @@
       imagesrcset="/images/editorial-hero-480.webp 480w, /images/editorial-hero-800.webp 800w, /images/editorial-hero-1280.webp 1280w"
       imagesizes="(max-width:767px) 100vw, 65vw"
     />
+    <style>
+      body.is-booting {
+        overflow: hidden;
+      }
+
+      body.is-booting #root {
+        opacity: 0;
+      }
+
+      #root {
+        opacity: 1;
+        transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .brand-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        color: #2b2723;
+        background: #f5f1e8;
+        transform-origin: top;
+      }
+
+      .brand-loader__content {
+        display: grid;
+        width: min(74vw, 31rem);
+        justify-items: center;
+        gap: 1.1rem;
+      }
+
+      .brand-loader__mark {
+        margin: 0;
+        font-family: "DM Sans Variable", Arial, sans-serif;
+        font-size: clamp(2rem, 5.5vw, 4.6rem);
+        font-weight: 650;
+        line-height: 0.95;
+        letter-spacing: -0.065em;
+        animation: brand-loader-mark 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+
+      .brand-loader__period {
+        display: inline-block;
+        color: #935f44;
+        animation: brand-loader-period 600ms 240ms
+          cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      }
+
+      .brand-loader__caption {
+        margin: 0;
+        color: #71695f;
+        font-family: "DM Sans Variable", Arial, sans-serif;
+        font-size: 0.7rem;
+        font-weight: 650;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        animation: brand-loader-caption 480ms 180ms
+          cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+
+      .brand-loader__track {
+        width: min(12rem, 46vw);
+        height: 1px;
+        overflow: hidden;
+        background: #d9d1c5;
+      }
+
+      .brand-loader__line {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: #2b2723;
+        transform: scaleX(0);
+        transform-origin: left;
+        animation: brand-loader-line 920ms 80ms cubic-bezier(0.65, 0, 0.35, 1)
+          forwards;
+      }
+
+      .brand-loader.is-leaving {
+        pointer-events: none;
+        animation: brand-loader-exit 620ms cubic-bezier(0.65, 0, 0.35, 1)
+          forwards;
+      }
+
+      .brand-loader.is-leaving .brand-loader__content {
+        animation: brand-loader-content-exit 240ms ease forwards;
+      }
+
+      .brand-loader__status {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      @keyframes brand-loader-mark {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes brand-loader-period {
+        from {
+          opacity: 0;
+          transform: scale(0.25);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes brand-loader-caption {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes brand-loader-line {
+        to {
+          transform: scaleX(1);
+        }
+      }
+
+      @keyframes brand-loader-content-exit {
+        to {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+      }
+
+      @keyframes brand-loader-exit {
+        0% {
+          opacity: 1;
+          transform: scaleY(1);
+        }
+        100% {
+          opacity: 1;
+          transform: scaleY(0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #root {
+          transition-duration: 120ms;
+        }
+
+        .brand-loader__mark,
+        .brand-loader__period,
+        .brand-loader__caption,
+        .brand-loader__line,
+        .brand-loader.is-leaving,
+        .brand-loader.is-leaving .brand-loader__content {
+          animation: none;
+          transform: none;
+        }
+
+        .brand-loader__line {
+          opacity: 0.45;
+        }
+
+        .brand-loader.is-leaving {
+          opacity: 0;
+          transition: opacity 120ms linear;
+        }
+      }
+    </style>
   </head>
-  <body>
+  <body class="is-booting">
+    <div
+      class="brand-loader"
+      id="brand-loader"
+      role="status"
+      aria-live="polite"
+      aria-label="Preparando Tu Marca"
+    >
+      <div class="brand-loader__content" aria-hidden="true">
+        <p class="brand-loader__mark">
+          TU MARCA<span class="brand-loader__period">.</span>
+        </p>
+        <p class="brand-loader__caption">Preparando la colección</p>
+        <span class="brand-loader__track">
+          <span class="brand-loader__line"></span>
+        </span>
+      </div>
+      <span class="brand-loader__status">Cargando la tienda</span>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
