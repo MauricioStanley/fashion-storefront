@@ -162,7 +162,7 @@ export const stockFor = (c: Configuration) =>
 export const lineKey = (c: Configuration) =>
   [c.productId, c.color, c.fabric, c.fit, c.size].join("|");
 export const imagePath = (name: string, width = 800) =>
-  `/images/${name}-${width}.webp`;
+  `${import.meta.env.BASE_URL}images/${name}-${width}.webp`;
 export const validConfiguration = (value: unknown): value is Configuration => {
   if (!value || typeof value !== "object") return false;
   const c = value as Configuration;
