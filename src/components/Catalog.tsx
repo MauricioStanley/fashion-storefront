@@ -4,12 +4,15 @@ import {
   Heart,
   SlidersHorizontal,
   Search,
+  ShoppingBag,
+  GitCompareArrows,
   X,
 } from "lucide-react";
 import { categories, colors, sizes, money } from "../data";
 import type { Category, ColorId, Product } from "../data";
 import { ColorSwatches, Photo, Segmented } from "./UI";
 import { Suggestions } from "./Suggestions";
+import { matchesProductSearch } from "../commerce";
 
 export type Filters = {
   category: Category;
@@ -70,16 +73,7 @@ export const filterProducts = (
       (!filters.onlyFavorites || favorites.includes(p.id)) &&
       (!filters.onlyNew || p.isNew) &&
       (!filters.inStock || p.availableSizes.length > 0) &&
-      `${p.name} ${p.category} ${p.materials}`
-        .toLocaleLowerCase("es")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .includes(
-          filters.query
-            .toLocaleLowerCase("es")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, ""),
-        ),
+      matchesProductSearch(p, filters.query),
   );
 
 function ProductCard({
@@ -87,14 +81,20 @@ function ProductCard({
   index,
   favorite,
   selected,
+  inCart,
+  compared,
   onFavorite,
+  onCompare,
   onChoose,
 }: {
   product: Product;
   index: number;
   favorite: boolean;
   selected: boolean;
+  inCart: boolean;
+  compared: boolean;
   onFavorite: () => void;
+  onCompare: () => void;
   onChoose: (p: Product, color: ColorId) => void;
 }) {
   const [view, setView] = useState<"Prenda" | "En persona">(
@@ -159,6 +159,23 @@ function ProductCard({
         <span>{money(p.price)}</span>
       </div>
       <ColorSwatches value={color} onChange={setColor} ids={p.colorIds} small />
+      <div className="card-memory-row">
+        {inCart ? (
+          <span>
+            <ShoppingBag size={14} /> En tu bolsa
+          </span>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <button
+          className="text-link"
+          aria-pressed={compared}
+          onClick={onCompare}
+        >
+          <GitCompareArrows size={14} />
+          {compared ? "Comparando" : "Comparar"}
+        </button>
+      </div>
     </article>
   );
 }
@@ -173,6 +190,9 @@ export default function Catalog({
   onFilters,
   onSearch,
   selectedProductId,
+  cartProductIds,
+  compareIds,
+  onCompare,
 }: {
   products: Product[];
   filters: Filters;
@@ -183,6 +203,9 @@ export default function Catalog({
   onFilters: () => void;
   onSearch: () => void;
   selectedProductId: string;
+  cartProductIds: string[];
+  compareIds: string[];
+  onCompare: (id: string) => void;
 }) {
   const visible = filterProducts(products, filters, favorites);
   const [all, setAll] = useState(false);
@@ -421,7 +444,10 @@ export default function Catalog({
               index={index}
               favorite={favorites.includes(p.id)}
               selected={selectedProductId === p.id}
+              inCart={cartProductIds.includes(p.id)}
+              compared={compareIds.includes(p.id)}
               onFavorite={() => onFavorite(p.id)}
+              onCompare={() => onCompare(p.id)}
               onChoose={onChoose}
             />
           ))}

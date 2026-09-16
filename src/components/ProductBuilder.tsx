@@ -11,6 +11,10 @@ import {
   Truck,
   Save,
   Info,
+  Bell,
+  MapPin,
+  ScanFace,
+  Share2,
 } from "lucide-react";
 import {
   available,
@@ -23,6 +27,7 @@ import {
   stockFor,
 } from "../data";
 import type { Configuration, View } from "../data";
+import { alternativeConfigurations } from "../commerce";
 import { ColorSwatches, CrossfadePhoto, Drawer, Photo, Segmented } from "./UI";
 
 type Props = {
@@ -35,6 +40,11 @@ type Props = {
   favorite: boolean;
   onBag: () => void;
   inBag: boolean;
+  recommendedSize?: Configuration["size"];
+  onRestock: (configuration: Configuration) => void;
+  onDelivery: () => void;
+  onShare: () => void;
+  onTryOn: () => void;
 };
 
 function AvailabilityStatus({
@@ -97,6 +107,11 @@ export default function ProductBuilder({
   favorite,
   onBag,
   inBag,
+  recommendedSize,
+  onRestock,
+  onDelivery,
+  onShare,
+  onTryOn,
 }: Props) {
   const product = productFor(c.productId);
   const [view, setView] = useState<View>("En persona");
@@ -109,6 +124,7 @@ export default function ProductBuilder({
   const sectionRef = useRef<HTMLElement>(null);
   const [inView, setInView] = useState(false);
   const selectedColor = colors.find((color) => color.id === c.color)!;
+  const alternatives = alternativeConfigurations(c);
   const shownImage = view === "En persona" ? product.model : product.product;
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -245,11 +261,13 @@ export default function ProductBuilder({
             <button
               key={size}
               aria-pressed={c.size === size}
-              className={`size-chip ${c.size === size ? "selected" : ""} ${!product.availableSizes.includes(size) ? "unavailable" : ""}`}
+              aria-label={`${size}${recommendedSize === size ? ", recomendada para ti" : ""}`}
+              className={`size-chip ${c.size === size ? "selected" : ""} ${recommendedSize === size ? "recommended" : ""} ${!product.availableSizes.includes(size) ? "unavailable" : ""}`}
               disabled={!product.availableSizes.includes(size)}
               onClick={() => change({ size })}
             >
               <span>{size}</span>
+              {recommendedSize === size && <small>Tu talla</small>}
             </button>
           ))}
         </div>
@@ -259,14 +277,29 @@ export default function ProductBuilder({
           <AlertCircle size={18} />
           <div>
             Esta combinación está agotada.
-            <button
-              className="text-link"
-              onClick={() =>
-                change({ color: product.colorIds[0], fabric: "Algodón" })
-              }
-            >
-              Ver alternativa disponible <ArrowRight size={14} />
-            </button>
+            <div className="stock-recovery-actions">
+              <button className="text-link" onClick={() => onRestock(c)}>
+                <Bell size={14} /> Avísame cuando vuelva
+              </button>
+              {alternatives.slice(0, 2).map((alternative, index) => (
+                <button
+                  className="text-link"
+                  key={`${alternative.color}-${alternative.fabric}`}
+                  aria-label={
+                    index === 0 ? "Ver alternativa disponible" : undefined
+                  }
+                  onClick={() =>
+                    change({
+                      color: alternative.color,
+                      fabric: alternative.fabric,
+                    })
+                  }
+                >
+                  {colors.find((color) => color.id === alternative.color)?.name}
+                  , {alternative.fabric} <ArrowRight size={14} />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       ) : (
@@ -307,6 +340,17 @@ export default function ProductBuilder({
       <button className="text-link save-design" onClick={() => onSave(c)}>
         <Save size={15} /> Guardar mi combinación
       </button>
+      <div className="product-utilities">
+        <button onClick={onDelivery}>
+          <MapPin size={16} /> Calcular entrega
+        </button>
+        <button onClick={onShare}>
+          <Share2 size={16} /> Compartir
+        </button>
+        <button onClick={onTryOn}>
+          <ScanFace size={16} /> Prueba visual
+        </button>
+      </div>
     </div>
   );
   return (

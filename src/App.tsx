@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ArrowRight,
@@ -18,6 +18,8 @@ import {
   X,
   RefreshCw,
   Bookmark,
+  GitCompareArrows,
+  PackageSearch,
 } from "lucide-react";
 import {
   available,
@@ -45,7 +47,48 @@ import Catalog, {
 import type { Filters } from "./components/Catalog";
 import ProductBuilder from "./components/ProductBuilder";
 import { Suggestions } from "./components/Suggestions";
-import { emailError, chestError } from "./validation";
+import {
+  ComparePanel,
+  CompleteLook,
+  RecentlyViewed,
+  ReviewsSection,
+} from "./components/ProductExperience";
+import {
+  configurationFromUrl,
+  configurationUrl,
+  emptySizeProfile,
+  recommendSize,
+  validDemoOrders,
+  validIdList,
+  validRestockAlerts,
+  validReviews,
+  validSearchHistory,
+  validSizeProfile,
+} from "./commerce";
+import type {
+  DemoOrder,
+  ProductReview,
+  RestockAlert,
+  SizeProfile,
+} from "./commerce";
+import { emailError } from "./validation";
+
+const SmartSearch = lazy(() => import("./components/SmartSearch"));
+const lazyPanel = <T extends keyof typeof import("./components/DemoPanels")>(
+  name: T,
+) =>
+  lazy(() =>
+    import("./components/DemoPanels").then((module) => ({
+      default: module[name],
+    })),
+  );
+const DeliveryPanel = lazyPanel("DeliveryPanel");
+const DemoCheckout = lazyPanel("DemoCheckout");
+const OrdersPanel = lazyPanel("OrdersPanel");
+const ReviewForm = lazyPanel("ReviewForm");
+const SharePanel = lazyPanel("SharePanel");
+const SizeProfilePanel = lazyPanel("SizeProfilePanel");
+const TryOnPanel = lazyPanel("TryOnPanel");
 
 type Panel =
   | "menu"
@@ -57,6 +100,12 @@ type Panel =
   | "contact"
   | "shipping"
   | "privacy"
+  | "compare"
+  | "review"
+  | "checkout"
+  | "orders"
+  | "tryOn"
+  | "share"
   | null;
 type Toast = {
   message: string;
@@ -75,6 +124,12 @@ const goTo = (id: string) =>
       ? "instant"
       : "smooth",
   });
+const PanelLoading = () => (
+  <div className="panel-loading" role="status">
+    <div className="media-skeleton" />
+    <span>Preparando la experiencia…</span>
+  </div>
+);
 
 export default function App() {
   const [favorites, setFavorites, favoriteError] = useStored(
@@ -98,6 +153,36 @@ export default function App() {
       defaultConfiguration(),
       validConfiguration,
     );
+  const [sizeProfile, setSizeProfile, sizeProfileError] =
+    useStored<SizeProfile>(
+      "fashion:size-profile:v1",
+      emptySizeProfile,
+      validSizeProfile,
+    );
+  const [recentIds, setRecentIds, recentError] = useStored<string[]>(
+    "fashion:recent:v1",
+    [],
+    validIdList,
+  );
+  const [searchHistory, setSearchHistory, searchHistoryError] = useStored<
+    string[]
+  >("fashion:search-history:v1", [], validSearchHistory);
+  const [customReviews, setCustomReviews, reviewsError] = useStored<
+    ProductReview[]
+  >("fashion:reviews:v1", [], validReviews);
+  const [restockAlerts, setRestockAlerts, alertsError] = useStored<
+    RestockAlert[]
+  >("fashion:restock-alerts:v1", [], validRestockAlerts);
+  const [compareIds, setCompareIds, compareError] = useStored<string[]>(
+    "fashion:compare:v1",
+    [],
+    validIdList,
+  );
+  const [orders, setOrders, ordersError] = useStored<DemoOrder[]>(
+    "fashion:orders:v1",
+    [],
+    validDemoOrders,
+  );
   const [panel, setPanel] = useState<Panel>(null);
   const [filters, setFilters, filtersError] = useStored<Filters>(
     "fashion:filters:v1",
@@ -112,22 +197,21 @@ export default function App() {
   const [newsletterState, setNewsletterState] = useState<
     "idle" | "error" | "saved"
   >("idle");
-  const [chest, setChest] = useState("");
-  const [sizeResult, setSizeResult] = useState("");
-  const [sizeError, setSizeError] = useState("");
-  const [chestTouched, setChestTouched] = useState(false);
-  const [fitLoading, setFitLoading] = useState(false);
-  const [checkoutSummary, setCheckoutSummary] = useState(false);
   const [bagError, setBagError] = useState("");
   const [bagPulse, setBagPulse] = useState(0);
+  const [urlReady, setUrlReady] = useState(false);
+  const [checkoutSummary, setCheckoutSummary] = useState(false);
   const quantity = cart.reduce((sum, line) => sum + line.quantity, 0);
   const total = cart.reduce(
     (sum, line) => sum + priceFor(line) * line.quantity,
     0,
   );
   const currentProduct = productFor(configuration.productId);
+  const sizeRecommendation = useMemo(
+    () => recommendSize(sizeProfile, currentProduct),
+    [currentProduct, sizeProfile],
+  );
   const emailIssue = emailTouched ? emailError(email) : "";
-  const chestIssue = chestTouched ? chestError(chest) : "";
   const draftCount = filterProducts(products, draftFilters, favorites).length;
   useReveal();
   useEffect(() => {
@@ -137,9 +221,35 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    setCheckoutSummary(false);
     setBagError("");
+    setCheckoutSummary(false);
   }, [panel]);
+  useEffect(() => {
+    const shared = configurationFromUrl();
+    if (shared) setConfiguration(shared);
+    setUrlReady(true);
+  }, [setConfiguration]);
+  useEffect(() => {
+    if (!urlReady) return;
+    const url = configurationUrl(configuration);
+    window.history.replaceState({ configuration }, "", url);
+  }, [configuration, urlReady]);
+  useEffect(() => {
+    setRecentIds((current) =>
+      [
+        configuration.productId,
+        ...current.filter((id) => id !== configuration.productId),
+      ].slice(0, 8),
+    );
+  }, [configuration.productId, setRecentIds]);
+  useEffect(() => {
+    const restore = () => {
+      const shared = configurationFromUrl();
+      if (shared) setConfiguration(shared);
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [setConfiguration]);
   const notify = (message: string, undo?: () => void) =>
     setToast({ message, undo });
   const toggleFavorite = (id: string) => {
@@ -193,6 +303,76 @@ export default function App() {
     setSaved([...saved, c]);
     notify("Personalización guardada", () => setSaved(before));
   };
+  const toggleCompare = (id: string) => {
+    if (compareIds.includes(id)) {
+      setCompareIds(compareIds.filter((item) => item !== id));
+      notify("Prenda retirada de la comparación");
+      return;
+    }
+    if (compareIds.length >= 3) {
+      setToast({
+        message: "Puedes comparar hasta tres prendas.",
+        actionLabel: "Abrir comparación",
+        action: () => setPanel("compare"),
+      });
+      return;
+    }
+    setCompareIds([...compareIds, id]);
+    notify("Prenda añadida a la comparación");
+  };
+  const saveRestockAlert = (item: Configuration) => {
+    const key = lineKey(item);
+    if (restockAlerts.some((alert) => alert.key === key)) {
+      notify("Ya guardamos esta combinación en tus avisos locales");
+      return;
+    }
+    setRestockAlerts([
+      ...restockAlerts,
+      { ...item, key, createdAt: new Date().toISOString() },
+    ]);
+    notify("Te avisaremos aquí cuando esta combinación vuelva");
+  };
+  const addLook = (items: Configuration[]) => {
+    const before = cart;
+    let next = [...cart];
+    let addedCount = 0;
+    items.forEach((item) => {
+      if (!available(item)) return;
+      const key = lineKey(item);
+      const existing = next.find((line) => line.key === key);
+      if ((existing?.quantity || 0) >= stockFor(item)) return;
+      next = existing
+        ? next.map((line) =>
+            line.key === key ? { ...line, quantity: line.quantity + 1 } : line,
+          )
+        : [...next, { ...item, key, quantity: 1 }];
+      addedCount += 1;
+    });
+    if (!addedCount) {
+      notify("Ese look ya alcanzó el stock disponible en tu bolsa");
+      return;
+    }
+    setCart(next);
+    setBagPulse((value) => value + 1);
+    setToast({
+      message: `${addedCount} ${addedCount === 1 ? "prenda añadida" : "prendas añadidas"} a tu look.`,
+      undo: () => setCart(before),
+      actionLabel: "Ver bolsa",
+      action: () => setPanel("bag"),
+    });
+  };
+  const addReview = (review: ProductReview) => {
+    setCustomReviews([review, ...customReviews]);
+    setPanel(null);
+    notify("Tu opinión ya forma parte de esta demostración");
+    setTimeout(() => goTo("opiniones"), 40);
+  };
+  const completeDemoOrder = (order: DemoOrder) => {
+    setOrders([order, ...orders].slice(0, 10));
+    setCart([]);
+    setPanel("orders");
+    setBagPulse((value) => value + 1);
+  };
   const openFilters = () => {
     setDraftFilters(filters);
     setPanel("filters");
@@ -201,39 +381,6 @@ export default function App() {
     setFilters({ ...initialFilters, gender, onlyNew });
     setPanel(null);
     setTimeout(() => goTo("coleccion"), 40);
-  };
-  const searchResults = filterProducts(
-    products,
-    { ...initialFilters, query: search },
-    favorites,
-  );
-  const sizeGuide = async (e: FormEvent) => {
-    e.preventDefault();
-    setChestTouched(true);
-    const measure = Number(chest.replace(",", "."));
-    if (chestError(chest)) {
-      setSizeError("");
-      setSizeResult("");
-      document.getElementById("chest")?.focus();
-      return;
-    }
-    setSizeError("");
-    setFitLoading(true);
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
-    const size =
-      measure < 84
-        ? "XS"
-        : measure < 92
-          ? "S"
-          : measure < 100
-            ? "M"
-            : measure < 110
-              ? "L"
-              : "XL";
-    setSizeResult(size);
-    setFitLoading(false);
   };
   const newsletter = (e: FormEvent) => {
     e.preventDefault();
@@ -361,6 +508,9 @@ export default function App() {
           onFilters={openFilters}
           onSearch={() => setPanel("search")}
           selectedProductId={configuration.productId}
+          cartProductIds={cart.map((line) => line.productId)}
+          compareIds={compareIds}
+          onCompare={toggleCompare}
         />
         <ProductBuilder
           configuration={configuration}
@@ -372,6 +522,34 @@ export default function App() {
           favorite={favorites.includes(currentProduct.id)}
           onBag={() => setPanel("bag")}
           inBag={cart.some((line) => line.key === lineKey(configuration))}
+          recommendedSize={sizeRecommendation?.size}
+          onRestock={saveRestockAlert}
+          onDelivery={() => setPanel("shipping")}
+          onShare={() => setPanel("share")}
+          onTryOn={() => setPanel("tryOn")}
+        />
+
+        <CompleteLook
+          configuration={configuration}
+          preferredSize={sizeRecommendation?.size || configuration.size}
+          onAdd={addLook}
+          onChoose={choose}
+        />
+
+        <ReviewsSection
+          product={currentProduct}
+          customReviews={customReviews}
+          onReview={() => setPanel("review")}
+        />
+
+        <RecentlyViewed
+          ids={recentIds}
+          currentId={currentProduct.id}
+          onChoose={choose}
+          onClear={() => {
+            setRecentIds([currentProduct.id]);
+            notify("Historial reciente limpiado");
+          }}
         />
 
         <section
@@ -628,6 +806,9 @@ export default function App() {
               Envíos y cambios
             </button>
             <button onClick={() => setPanel("contact")}>Contacto</button>
+            <button onClick={() => setPanel("orders")}>
+              Pedidos demo{orders.length ? ` (${orders.length})` : ""}
+            </button>
           </div>
           <form className="newsletter" onSubmit={newsletter} noValidate>
             <label htmlFor="newsletter-email">Lo nuevo, antes que nadie.</label>
@@ -684,6 +865,28 @@ export default function App() {
           <span>Hecho para sentirte tú.</span>
         </div>
       </footer>
+
+      {compareIds.length > 0 && !panel && (
+        <div className="compare-tray glass" role="status">
+          <GitCompareArrows size={18} />
+          <span>
+            <strong>{compareIds.length} de 3</strong> para comparar
+          </span>
+          <button
+            className="primary-button"
+            onClick={() => setPanel("compare")}
+          >
+            Comparar
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Vaciar comparación"
+            onClick={() => setCompareIds([])}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <nav className="mobile-navigation glass" aria-label="Navegación móvil">
         <button onClick={() => goTo("inicio")}>
@@ -747,7 +950,14 @@ export default function App() {
         cartError ||
         savedError ||
         configurationError ||
-        filtersError) && (
+        filtersError ||
+        sizeProfileError ||
+        recentError ||
+        searchHistoryError ||
+        reviewsError ||
+        alertsError ||
+        compareError ||
+        ordersError) && (
         <div className="storage-warning" role="status">
           El navegador no permite guardar cambios. Tus elecciones estarán
           disponibles durante esta visita.
@@ -767,9 +977,16 @@ export default function App() {
               contact: "Hablemos",
               shipping: "Envíos y cambios",
               privacy: "Tu privacidad",
+              compare: `Comparar prendas (${compareIds.length})`,
+              review: `Opina sobre ${currentProduct.name}`,
+              checkout: "Finaliza como invitado",
+              orders: "Tus pedidos demo",
+              tryOn: `Prueba visual de ${currentProduct.name}`,
+              share: "Comparte tu combinación",
             }[panel]
           }
           onClose={() => setPanel(null)}
+          wide={panel === "compare" || panel === "checkout"}
         >
           {toast && (
             <div className="panel-feedback" role="status">
@@ -807,6 +1024,16 @@ export default function App() {
               >
                 El atelier <ArrowUpRight />
               </button>
+              {compareIds.length > 0 && (
+                <button onClick={() => setPanel("compare")}>
+                  Comparar prendas <GitCompareArrows />
+                </button>
+              )}
+              {orders.length > 0 && (
+                <button onClick={() => setPanel("orders")}>
+                  Pedidos demo <PackageSearch />
+                </button>
+              )}
               <p>
                 Prendas para ver, combinar
                 <br />y llevar a tu manera.
@@ -814,91 +1041,21 @@ export default function App() {
             </div>
           )}
           {panel === "search" && (
-            <>
-              <label className="field-label" htmlFor="product-search">
-                Buscar por prenda o material
-              </label>
-              <div className="search-input">
-                <Search size={19} />
-                <input
-                  id="product-search"
-                  type="search"
-                  inputMode="search"
-                  enterKeyHint="search"
-                  maxLength={200}
-                  placeholder="Prueba «lino» o «vestido»"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <p
-                className="search-count"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              >
-                {searchResults.length} prendas para descubrir
-              </p>
-              <div className="drawer-product-list">
-                {searchResults.map((p) => (
-                  <button
-                    className="search-result"
-                    key={p.id}
-                    onClick={() => choose(p)}
-                  >
-                    <Photo name={p.model} alt={p.name} />
-                    <span>
-                      <strong>{p.name}</strong>
-                      <small>{p.materials}</small>
-                    </span>
-                    <span>{money(p.price)}</span>
-                    <ArrowUpRight size={16} />
-                  </button>
-                ))}
-              </div>
-              {searchResults.length === 0 && (
-                <div className="empty-state">
-                  <Search />
-                  <h3>Probemos con otra palabra.</h3>
-                  <p>No hay prendas que coincidan con tu búsqueda.</p>
-                  <div className="recovery-actions">
-                    {["lino", "vestido", "camiseta"].map((term) => (
-                      <button
-                        className="secondary-button"
-                        key={term}
-                        onClick={() => setSearch(term)}
-                      >
-                        Buscar {term}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {searchResults.length === 0 && (
-                <Suggestions
-                  products={products}
-                  onChoose={choose}
-                  title="Mientras encuentras la indicada"
-                />
-              )}
-              <button
-                className="primary-button drawer-main-button"
-                onClick={() => {
-                  setFilters({
-                    ...initialFilters,
-                    query: searchResults.length ? search : "",
-                  });
+            <Suspense fallback={<PanelLoading />}>
+              <SmartSearch
+                query={search}
+                setQuery={setSearch}
+                history={searchHistory}
+                setHistory={setSearchHistory}
+                recentIds={recentIds}
+                onChoose={choose}
+                onViewAll={(query) => {
+                  setFilters({ ...initialFilters, query });
                   setPanel(null);
                   setTimeout(() => goTo("coleccion"), 40);
                 }}
-              >
-                {searchResults.length
-                  ? "Ver resultados en la colección"
-                  : "Explorar toda la colección"}{" "}
-                <ArrowRight size={17} />
-              </button>
-            </>
+              />
+            </Suspense>
           )}
           {panel === "filters" && (
             <form
@@ -1019,7 +1176,9 @@ export default function App() {
               <p className="drawer-intro">
                 Todo lo que te gusta, en un solo lugar.
               </p>
-              {favorites.length === 0 && saved.length === 0 ? (
+              {favorites.length === 0 &&
+              saved.length === 0 &&
+              restockAlerts.length === 0 ? (
                 <div className="empty-state">
                   <Heart size={34} />
                   <h3>Tu próxima favorita te espera.</h3>
@@ -1087,6 +1246,44 @@ export default function App() {
                               setSaved(
                                 saved.filter(
                                   (item) => lineKey(item) !== lineKey(c),
+                                ),
+                              )
+                            }
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {restockAlerts.length > 0 && (
+                    <div className="saved-designs restock-list">
+                      <h3>Avisos de reposición</h3>
+                      {restockAlerts.map((alert) => (
+                        <div className="saved-design" key={alert.key}>
+                          <button
+                            onClick={() => {
+                              setConfiguration(alert);
+                              setPanel(null);
+                              setTimeout(() => goTo("atelier"), 40);
+                            }}
+                          >
+                            <strong>{productFor(alert.productId).name}</strong>
+                            <span>
+                              {
+                                colors.find((color) => color.id === alert.color)
+                                  ?.name
+                              }{" "}
+                              / {alert.fabric} / {alert.size}
+                            </span>
+                          </button>
+                          <button
+                            className="icon-button"
+                            aria-label="Eliminar aviso de reposición"
+                            onClick={() =>
+                              setRestockAlerts(
+                                restockAlerts.filter(
+                                  (item) => item.key !== alert.key,
                                 ),
                               )
                             }
@@ -1171,7 +1368,6 @@ export default function App() {
                                       : [item],
                                   ),
                                 );
-                                setCheckoutSummary(false);
                               }}
                             >
                               <Minus size={14} />
@@ -1183,7 +1379,6 @@ export default function App() {
                               onClick={() => {
                                 const error = addToCart(line);
                                 setBagError(error || "");
-                                setCheckoutSummary(false);
                               }}
                             >
                               <Plus size={14} />
@@ -1208,7 +1403,6 @@ export default function App() {
                               setCart(
                                 cart.filter((item) => item.key !== line.key),
                               );
-                              setCheckoutSummary(false);
                               notify("Prenda eliminada de la bolsa", () =>
                                 setCart(before),
                               );
@@ -1225,7 +1419,7 @@ export default function App() {
                       <span>Subtotal</span>
                       <strong>{money(total)}</strong>
                     </div>
-                    <p>Envío e impuestos pendientes de configurar.</p>
+                    <p>La entrega se calcula en el checkout demostrativo.</p>
                     {bagError && (
                       <p className="form-error" role="alert">
                         {bagError}
@@ -1245,10 +1439,12 @@ export default function App() {
                           <p>
                             {quantity} prendas · {money(total)}
                           </p>
-                          <p>
-                            Esta es una tienda de demostración. No se realizará
-                            ningún cobro ni pedido.
-                          </p>
+                          <button
+                            className="primary-button"
+                            onClick={() => setPanel("checkout")}
+                          >
+                            Continuar como invitado <ArrowRight size={16} />
+                          </button>
                         </div>
                       </div>
                     )}
@@ -1258,126 +1454,19 @@ export default function App() {
             </>
           )}
           {panel === "size" && (
-            <>
-              <p className="drawer-intro">
-                Mide alrededor de la parte más ancha del pecho, sin apretar la
-                cinta.
-              </p>
-              <form onSubmit={sizeGuide} className="size-form" noValidate>
-                <label htmlFor="chest">Contorno de pecho (cm)</label>
-                <div className="measure-input">
-                  <input
-                    id="chest"
-                    inputMode="decimal"
-                    type="text"
-                    enterKeyHint="done"
-                    autoComplete="off"
-                    maxLength={6}
-                    value={chest}
-                    onChange={(e) => {
-                      setChest(e.target.value);
-                      setChestTouched(true);
-                      setSizeResult("");
-                      setSizeError("");
-                    }}
-                    placeholder="Por ejemplo, 96"
-                    onBlur={() => setChestTouched(true)}
-                    aria-invalid={!!chestIssue}
-                    aria-describedby="size-help size-validation"
-                  />
-                  <span>cm</span>
-                </div>
-                <p id="size-help">
-                  Referencia orientativa para prendas superiores.
-                </p>
-                <p
-                  id="size-validation"
-                  className={
-                    chestIssue ? "field-feedback form-error" : "field-feedback"
-                  }
-                  role="status"
-                >
-                  {chestIssue ||
-                    (chestTouched
-                      ? "Medida lista. Consulta la talla que te orienta."
-                      : "Admite decimales: 96,5 o 96.5.")}
-                </p>
-                {sizeError && (
-                  <p className="form-error" role="alert">
-                    {sizeError}
-                  </p>
-                )}
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={fitLoading}
-                  aria-busy={fitLoading}
-                >
-                  {fitLoading ? "Consultando…" : "Consultar mi talla"}{" "}
-                  <Ruler size={17} />
-                </button>
-                {fitLoading && <div className="fit-skeleton" />}
-                {sizeResult && (
-                  <div className="size-result" role="status">
-                    <CheckCircle2 />
-                    <h3>Tu talla de referencia: {sizeResult}</h3>
-                    <p>
-                      Comprueba siempre las medidas de la prenda. El ajuste
-                      puede variar según tejido y corte.
-                    </p>
-                    <button
-                      className="text-link"
-                      onClick={() => {
-                        if (
-                          !currentProduct.availableSizes.includes(
-                            sizeResult as never,
-                          )
-                        ) {
-                          setSizeError(
-                            "Esa talla no está disponible para la prenda seleccionada.",
-                          );
-                          return;
-                        }
-                        setConfiguration({
-                          ...configuration,
-                          size: sizeResult as Configuration["size"],
-                        });
-                        setPanel(null);
-                        setTimeout(() => goTo("atelier"), 40);
-                      }}
-                      type="button"
-                    >
-                      Usar esta talla <ArrowRight size={15} />
-                    </button>
-                  </div>
-                )}
-              </form>
-              <div className="size-table">
-                <table>
-                  <caption>Guía orientativa de tallas</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Talla</th>
-                      <th scope="col">Pecho (cm)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      ["XS", "72–83"],
-                      ["S", "84–91"],
-                      ["M", "92–99"],
-                      ["L", "100–109"],
-                      ["XL", "110–124"],
-                    ].map(([s, m]) => (
-                      <tr key={s}>
-                        <th scope="row">{s}</th>
-                        <td>{m}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+            <Suspense fallback={<PanelLoading />}>
+              <SizeProfilePanel
+                profile={sizeProfile}
+                setProfile={setSizeProfile}
+                product={currentProduct}
+                onApply={(size) => {
+                  setConfiguration({ ...configuration, size });
+                  setPanel(null);
+                  notify(`Talla ${size} aplicada a ${currentProduct.name}`);
+                  setTimeout(() => goTo("atelier"), 40);
+                }}
+              />
+            </Suspense>
           )}
           {panel === "contact" && (
             <div className="info-panel">
@@ -1396,29 +1485,63 @@ export default function App() {
             </div>
           )}
           {panel === "shipping" && (
-            <div className="info-panel">
-              <Truck size={32} />
-              <h3>Una compra a tu medida.</h3>
-              <p>
-                Las zonas de entrega, costes, tiempos y política de cambios se
-                configurarán con la empresa que utilice esta tienda.
-              </p>
-              <p>
-                Este prototipo no procesa pedidos. Tus prendas permanecen
-                guardadas en este navegador.
-              </p>
-              <button className="text-link" onClick={() => setPanel("bag")}>
-                Ver mi bolsa <ArrowRight size={16} />
-              </button>
-            </div>
+            <Suspense fallback={<PanelLoading />}>
+              <DeliveryPanel total={total || priceFor(configuration)} />
+            </Suspense>
+          )}
+          {panel === "compare" && (
+            <ComparePanel
+              ids={compareIds}
+              onChoose={choose}
+              onRemove={(id) =>
+                setCompareIds(compareIds.filter((item) => item !== id))
+              }
+            />
+          )}
+          {panel === "review" && (
+            <Suspense fallback={<PanelLoading />}>
+              <ReviewForm product={currentProduct} onSubmit={addReview} />
+            </Suspense>
+          )}
+          {panel === "checkout" && (
+            <Suspense fallback={<PanelLoading />}>
+              <DemoCheckout
+                cart={cart}
+                total={total}
+                onComplete={completeDemoOrder}
+              />
+            </Suspense>
+          )}
+          {panel === "orders" && (
+            <Suspense fallback={<PanelLoading />}>
+              <OrdersPanel orders={orders} />
+            </Suspense>
+          )}
+          {panel === "tryOn" && (
+            <Suspense fallback={<PanelLoading />}>
+              <TryOnPanel product={currentProduct} />
+            </Suspense>
+          )}
+          {panel === "share" && (
+            <Suspense fallback={<PanelLoading />}>
+              <SharePanel
+                url={configurationUrl(configuration)}
+                onCopied={() =>
+                  notify(
+                    "Enlace copiado. Tu combinación está lista para compartir",
+                  )
+                }
+              />
+            </Suspense>
           )}
           {panel === "privacy" && (
             <div className="info-panel">
               <h3>Tus elecciones se quedan contigo.</h3>
               <p>
-                Este prototipo almacena favoritos, bolsa y configuraciones en el
-                almacenamiento local de tu navegador. No hay cuentas, analítica
-                ni envío de información a un servidor.
+                Este prototipo almacena favoritos, bolsa, perfil de talla,
+                reseñas, historial y pedidos demo en el almacenamiento local de
+                tu navegador. No hay cuentas, analítica ni envío de información
+                a un servidor.
               </p>
               <p>
                 El formulario de correo únicamente valida el formato. La
@@ -1433,6 +1556,13 @@ export default function App() {
                   setSaved([]);
                   setConfiguration(defaultConfiguration());
                   setFilters(initialFilters);
+                  setSizeProfile(emptySizeProfile);
+                  setRecentIds([]);
+                  setSearchHistory([]);
+                  setCustomReviews([]);
+                  setRestockAlerts([]);
+                  setCompareIds([]);
+                  setOrders([]);
                   notify("Tus datos locales se han restablecido");
                 }}
               >
