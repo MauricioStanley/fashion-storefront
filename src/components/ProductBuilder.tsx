@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -23,7 +23,7 @@ import {
   stockFor,
 } from "../data";
 import type { Configuration, View } from "../data";
-import { ColorSwatches, Drawer, Photo, Segmented } from "./UI";
+import { ColorSwatches, CrossfadePhoto, Drawer, Photo, Segmented } from "./UI";
 
 type Props = {
   configuration: Configuration;
@@ -36,6 +36,57 @@ type Props = {
   onBag: () => void;
   inBag: boolean;
 };
+
+function AvailabilityStatus({
+  configuration,
+}: {
+  configuration: Configuration;
+}) {
+  const statusKey = configuration.size
+    ? `${configuration.size}-${stockFor(configuration)}`
+    : "choose-size";
+  const currentRef = useRef(configuration);
+  const keyRef = useRef(statusKey);
+  const [previous, setPrevious] = useState<Configuration | null>(null);
+  const [entered, setEntered] = useState(true);
+
+  useLayoutEffect(() => {
+    if (keyRef.current === statusKey) {
+      currentRef.current = configuration;
+      return;
+    }
+    setPrevious(currentRef.current);
+    currentRef.current = configuration;
+    keyRef.current = statusKey;
+    setEntered(false);
+    const frame = requestAnimationFrame(() => setEntered(true));
+    const timer = window.setTimeout(() => setPrevious(null), 260);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [configuration, statusKey]);
+
+  const message = (value: Configuration, className: string, hidden = false) => (
+    <p
+      className={`availability availability-layer ${className}`}
+      aria-hidden={hidden || undefined}
+    >
+      {value.size ? <Check size={14} /> : <Info size={14} />}{" "}
+      {value.size
+        ? `Disponible en esta combinación. ${stockFor(value)} unidades en el catálogo de prueba.`
+        : "Solo falta tu talla. Elige una para comprobar disponibilidad."}
+    </p>
+  );
+
+  return (
+    <div className={`availability-stack ${entered ? "is-entered" : ""}`}>
+      {previous && message(previous, "availability-outgoing", true)}
+      {message(configuration, "availability-incoming")}
+    </div>
+  );
+}
+
 export default function ProductBuilder({
   configuration: c,
   setConfiguration,
@@ -71,6 +122,11 @@ export default function ProductBuilder({
     setMessage("");
     setAdded(false);
   }, [c.productId]);
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(false), 1500);
+    return () => clearTimeout(timer);
+  }, [added]);
   useEffect(() => {
     let alive = true;
     setBusy(true);
@@ -189,11 +245,11 @@ export default function ProductBuilder({
             <button
               key={size}
               aria-pressed={c.size === size}
-              className={`${c.size === size ? "selected" : ""} ${!product.availableSizes.includes(size) ? "unavailable" : ""}`}
+              className={`size-chip ${c.size === size ? "selected" : ""} ${!product.availableSizes.includes(size) ? "unavailable" : ""}`}
               disabled={!product.availableSizes.includes(size)}
               onClick={() => change({ size })}
             >
-              {size}
+              <span>{size}</span>
             </button>
           ))}
         </div>
@@ -214,12 +270,7 @@ export default function ProductBuilder({
           </div>
         </div>
       ) : (
-        <p className="availability">
-          {c.size ? <Check size={14} /> : <Info size={14} />}{" "}
-          {c.size
-            ? `Disponible en esta combinación. ${stockFor(c)} unidades en el catálogo de prueba.`
-            : "Solo falta tu talla. Elige una para comprobar disponibilidad."}
-        </p>
+        <AvailabilityStatus configuration={c} />
       )}
       {message && (
         <p
@@ -231,13 +282,17 @@ export default function ProductBuilder({
         </p>
       )}
       <button
-        className="primary-button add-button"
+        className={`primary-button add-button ${added ? "is-added" : ""}`}
         onClick={add}
         aria-busy={adding}
         disabled={adding || (!!c.size && !available(c))}
       >
-        <ShoppingBag size={18} />
-        {adding ? "Añadiendo…" : "Añadir a la bolsa"}
+        {added ? (
+          <Check className="add-check" size={18} />
+        ) : (
+          <ShoppingBag size={18} />
+        )}
+        {adding ? "Añadiendo…" : added ? "Añadido" : "Añadir a la bolsa"}
         <span>{money(priceFor(c))}</span>
       </button>
       {added && inBag && (
@@ -274,9 +329,9 @@ export default function ProductBuilder({
             className={`gallery-main ${busy ? "is-loading" : ""}`}
             aria-busy={busy}
           >
-            <Photo
-              key={shownImage}
+            <CrossfadePhoto
               name={shownImage}
+              transitionKey={`${shownImage}:${c.color}:${c.fabric}:${c.fit}`}
               alt={`${product.name}, ${view === "En persona" ? "vista sobre modelo" : "vista de la prenda"}, fotografía de referencia`}
             />
             <button

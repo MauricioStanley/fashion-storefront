@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 export function useStored<T>(
   key: string,
@@ -26,11 +26,18 @@ export function useStored<T>(
 }
 
 export function useReveal() {
-  useEffect(() => {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  useLayoutEffect(() => {
+    const header = document.querySelector<HTMLElement>(".site-header");
     const observer = new IntersectionObserver(
       (entries) =>
         entries.forEach((entry) => {
+          if (
+            entry.target instanceof HTMLElement &&
+            entry.target.hasAttribute("data-header-sentinel")
+          ) {
+            header?.classList.toggle("is-compact", !entry.isIntersecting);
+            return;
+          }
           if (entry.isIntersecting) {
             entry.target.classList.add("is-visible");
             observer.unobserve(entry.target);
@@ -40,9 +47,14 @@ export function useReveal() {
     );
     const elements = document.querySelectorAll<HTMLElement>("[data-reveal]");
     elements.forEach((el) => {
+      el.style.setProperty("--reveal-index", el.dataset.revealIndex || "0");
       el.classList.add("will-reveal");
       observer.observe(el);
     });
+    const sentinel = document.querySelector<HTMLElement>(
+      "[data-header-sentinel]",
+    );
+    if (sentinel) observer.observe(sentinel);
     return () => observer.disconnect();
   }, []);
 }

@@ -1,4 +1,4 @@
-/* Direction: editorial fashion. Variance 7, motion 4, density 3.
+/* Direction: editorial fashion. Variance 7, motion 6, density 3.
    Light palette explicitly requested. Radii: media 20px, controls 8px,
    floating controls 999px. Layers: header 20, mobile 30, toast 60;
    modal dialogs use the browser top layer. Web frosted glass approximation. */
@@ -20,6 +20,12 @@
   --success: #426049;
   --error: #963e2e;
   --serif: "Newsreader Variable", Georgia, serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 400ms;
   scroll-behavior: smooth;
   color-scheme: light;
 }
@@ -3322,16 +3328,27 @@ input::placeholder {
   :root {
     scroll-behavior: auto;
   }
-  *,
-  *:before,
-  *:after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
   .will-reveal {
-    opacity: 1 !important;
+    opacity: 0;
     transform: none !important;
+    transition: opacity var(--dur-slow) linear !important;
+  }
+  .will-reveal.is-visible {
+    opacity: 1;
+  }
+  .hero-photo img,
+  .favorite-button svg,
+  .gallery-heart svg,
+  .badge-bounce,
+  .add-check path {
+    animation: none !important;
+  }
+  .crossfade-outgoing,
+  .crossfade-incoming,
+  .photo img,
+  .availability {
+    transform: none !important;
+    transition-property: opacity !important;
   }
 }
 @media (prefers-reduced-transparency: reduce) {

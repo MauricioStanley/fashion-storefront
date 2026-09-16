@@ -26,8 +26,8 @@ select,
 .search-input,
 .measure-input {
   transition:
-    border-color 0.18s,
-    background 0.18s;
+    border-color var(--dur-fast) var(--ease-in-out),
+    background-color var(--dur-fast) var(--ease-in-out);
 }
 .newsletter-input:focus-within,
 .search-input:focus-within,

@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 
 await fs.mkdir("artifacts", { recursive: true });
 const server = await preview({
+  base: "/fashion-storefront/",
   preview: { host: "127.0.0.1", port: 5174, strictPort: true },
 });
 let chrome;
@@ -13,16 +14,30 @@ try {
     chromePath:
       process.env.CHROME_PATH ||
       "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    chromeFlags: ["--headless", "--disable-gpu"],
+    chromeFlags: [
+      "--headless=new",
+      "--disable-gpu",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--disable-background-timer-throttling",
+    ],
   });
   for (const mobile of [true, false]) {
     const label = mobile ? "mobile" : "desktop";
-    const result = await lighthouse("http://127.0.0.1:5174", {
-      port: chrome.port,
-      output: ["json", "html"],
-      onlyCategories: ["performance", "accessibility", "best-practices", "seo"],
-      ...(mobile ? {} : { preset: "desktop" }),
-    });
+    const result = await lighthouse(
+      "http://127.0.0.1:5174/fashion-storefront/",
+      {
+        port: chrome.port,
+        output: ["json", "html"],
+        onlyCategories: [
+          "performance",
+          "accessibility",
+          "best-practices",
+          "seo",
+        ],
+        ...(mobile ? {} : { preset: "desktop" }),
+      },
+    );
     await fs.writeFile(`artifacts/lighthouse-${label}.json`, result.report[0]);
     await fs.writeFile(`artifacts/lighthouse-${label}.html`, result.report[1]);
     console.log(

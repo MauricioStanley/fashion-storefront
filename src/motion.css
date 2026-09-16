@@ -1,0 +1,547 @@
+/* Motion layer: feedback, hierarchy and state continuity only. */
+
+.header-sentinel {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 150px;
+  pointer-events: none;
+}
+
+.site-header {
+  isolation: isolate;
+  transition: transform var(--dur-base) var(--ease-out);
+  will-change: transform;
+}
+
+.site-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(250 247 240 / 0.14);
+  backdrop-filter: blur(8px) saturate(115%);
+  -webkit-backdrop-filter: blur(8px) saturate(115%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-in-out);
+}
+
+.site-header.is-compact {
+  transform: translate3d(0, -4px, 0) scale(0.985);
+}
+
+.site-header.is-compact::before {
+  opacity: 1;
+}
+
+.primary-button,
+.secondary-button,
+.icon-button,
+.filter-button,
+.fit-card {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background-color var(--dur-base) var(--ease-in-out),
+    color var(--dur-base) var(--ease-in-out),
+    border-color var(--dur-base) var(--ease-in-out),
+    box-shadow var(--dur-base) var(--ease-in-out);
+}
+
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled),
+.filter-button:active:not(:disabled),
+.fit-card:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.photo img {
+  opacity: 0;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out);
+}
+
+.photo.loaded img {
+  opacity: 1;
+}
+
+.photo.loading::after,
+.media-skeleton {
+  animation: shimmer 1.5s var(--ease-in-out) infinite;
+}
+
+.crossfade-photo {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.crossfade-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.crossfade-incoming {
+  z-index: 2;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-in-out);
+}
+
+.crossfade-outgoing {
+  z-index: 1;
+  opacity: 1;
+  transition: opacity var(--dur-base) var(--ease-in-out);
+}
+
+.crossfade-photo.is-entered .crossfade-incoming {
+  opacity: 1;
+}
+
+.crossfade-photo.is-entered .crossfade-outgoing {
+  opacity: 0;
+}
+
+.swatch {
+  box-shadow: 0 0 0 0 rgb(139 102 71 / 0);
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    border-color var(--dur-base) var(--ease-in-out),
+    box-shadow var(--dur-base) var(--ease-spring);
+}
+
+.swatch.selected {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px rgb(139 102 71 / 0.24);
+}
+
+.swatch:active:not(:disabled) {
+  transform: scale(0.95);
+  transition-duration: var(--dur-fast);
+}
+
+.fabric-option,
+.segmented button {
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    background-color var(--dur-base) var(--ease-in-out),
+    border-color var(--dur-base) var(--ease-in-out),
+    color var(--dur-base) var(--ease-in-out);
+}
+
+.fabric-option.selected,
+.segmented button.active {
+  transform: translate3d(0, -1px, 0);
+}
+
+.fabric-option:active:not(:disabled),
+.segmented button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.size-chip {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    border-color var(--dur-base) var(--ease-in-out),
+    color var(--dur-base) var(--ease-in-out);
+}
+
+.size-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #e8ddcc;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+
+.size-chip > span {
+  position: relative;
+  z-index: 1;
+}
+
+.size-options .size-chip.selected {
+  background: transparent;
+}
+
+.size-chip.selected::before {
+  transform: scaleY(1);
+}
+
+.size-chip:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.availability-stack {
+  display: grid;
+}
+
+.availability-layer {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--dur-base) var(--ease-in-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.availability-incoming {
+  opacity: 0;
+  transform: translate3d(0, 5px, 0);
+}
+
+.availability-outgoing {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.availability-stack.is-entered .availability-incoming {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.availability-stack.is-entered .availability-outgoing {
+  opacity: 0;
+  transform: translate3d(0, -4px, 0);
+}
+
+.category-tabs {
+  position: relative;
+  isolation: isolate;
+}
+
+.category-indicator {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 100px;
+  background: var(--clay);
+  box-shadow: 0 2px 6px #75503012;
+  pointer-events: none;
+  transition: transform var(--dur-slow) var(--ease-out);
+  will-change: transform;
+}
+
+.category-tabs button {
+  position: relative;
+  z-index: 1;
+  transition:
+    color var(--dur-base) var(--ease-in-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.category-tabs button.active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.category-tabs button:active {
+  transform: scale(0.96);
+}
+
+.favorite-button svg,
+.gallery-heart svg {
+  transform-origin: center;
+}
+
+.favorite-button.is-favorite svg,
+.gallery-heart.is-favorite svg {
+  animation: favorite-pop var(--dur-slow) var(--ease-spring);
+}
+
+.add-button {
+  position: relative;
+}
+
+.add-button.is-added {
+  box-shadow: inset 0 0 0 1px rgb(251 248 242 / 0.32);
+}
+
+.add-check path,
+.add-check polyline {
+  stroke-dasharray: 28;
+  stroke-dashoffset: 28;
+  animation: draw-check var(--dur-slow) var(--ease-out) forwards;
+}
+
+.badge-bounce {
+  animation: bag-bounce var(--dur-slow) var(--ease-spring);
+  transform-origin: center;
+  will-change: transform;
+}
+
+.product-card {
+  transition:
+    opacity var(--dur-slow) var(--ease-in-out),
+    transform var(--dur-slow) var(--ease-out);
+}
+
+.product-card .card-media {
+  transition: box-shadow var(--dur-base) var(--ease-in-out);
+}
+
+.product-card.is-selected .card-media {
+  box-shadow:
+    0 0 0 2px rgb(147 95 68 / 0.65),
+    0 18px 40px rgb(83 57 36 / 0.14);
+}
+
+.product-grid:has(.product-card.is-selected) .product-card:not(.is-selected) {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-content .eyebrow,
+  .hero-content h1,
+  .hero-content > p,
+  .hero-ctas {
+    animation-timing-function: var(--ease-out);
+  }
+
+  .will-reveal {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+    transition:
+      opacity var(--dur-slow) var(--ease-out),
+      transform var(--dur-slow) var(--ease-out);
+    transition-delay: calc(var(--reveal-index, 0) * 70ms);
+  }
+
+  .will-reveal.is-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .hero-photo img {
+    animation: hero-ken-burns 20s var(--ease-in-out) infinite alternate;
+    will-change: transform;
+  }
+
+  @supports (animation-timeline: view()) {
+    .confidence-photo > .photo,
+    .closing-section > .photo {
+      animation: section-parallax linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 100%;
+      will-change: transform;
+    }
+  }
+}
+
+.details-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-out);
+}
+
+.details-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translate3d(0, -6px, 0);
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.confidence-accordions details[open] .details-content {
+  grid-template-rows: 1fr;
+}
+
+.confidence-accordions details[open] .details-inner {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.confidence-accordions summary > svg:last-child {
+  transition: transform var(--dur-base) var(--ease-in-out);
+}
+
+.drawer[open] {
+  animation-timing-function: var(--ease-out);
+}
+
+.toast {
+  animation-timing-function: var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swatch:hover:not(.selected) {
+    transform: scale(1.04);
+  }
+
+  .text-link {
+    position: relative;
+    text-decoration: none;
+  }
+
+  .text-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 7px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .text-link:hover::after,
+  .text-link:focus-visible::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+
+  .product-card .favorite-button,
+  .product-card .quick-view {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+    transition:
+      opacity var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out),
+      background-color var(--dur-base) var(--ease-in-out),
+      color var(--dur-base) var(--ease-in-out);
+  }
+
+  .product-card:hover .favorite-button,
+  .product-card:hover .quick-view,
+  .product-card:focus-within .favorite-button,
+  .product-card:focus-within .quick-view,
+  .product-card .favorite-button.is-favorite {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .card-media:hover .photo img {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes favorite-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.3);
+  }
+}
+
+@keyframes bag-bounce {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  45% {
+    transform: translate3d(0, -4px, 0) scale(1.16);
+  }
+}
+
+@keyframes draw-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hero-ken-burns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes section-parallax {
+  from {
+    transform: translate3d(0, -3%, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(0, 3%, 0) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header.is-compact,
+  .swatch,
+  .swatch.selected,
+  .fabric-option,
+  .fabric-option.selected,
+  .segmented button,
+  .segmented button.active,
+  .size-chip,
+  .category-tabs button,
+  .primary-button,
+  .secondary-button,
+  .filter-button,
+  .fit-card,
+  .product-card,
+  .product-card .favorite-button,
+  .product-card .quick-view {
+    transform: none !important;
+  }
+
+  .site-header,
+  .swatch,
+  .fabric-option,
+  .segmented button,
+  .size-chip,
+  .category-indicator,
+  .primary-button,
+  .secondary-button,
+  .filter-button,
+  .fit-card,
+  .details-content {
+    transition-duration: 0s !important;
+  }
+
+  .details-inner {
+    transform: none;
+    transition: opacity var(--dur-base) linear;
+  }
+
+  .hero-photo img,
+  .confidence-photo > .photo,
+  .closing-section > .photo,
+  .favorite-button svg,
+  .gallery-heart svg,
+  .badge-bounce,
+  .add-check path,
+  .add-check polyline {
+    animation: none !important;
+  }
+
+  .crossfade-incoming,
+  .crossfade-outgoing,
+  .availability-layer {
+    transition: opacity var(--dur-base) linear;
+    transform: none !important;
+  }
+
+  .add-check path,
+  .add-check polyline {
+    stroke-dashoffset: 0;
+  }
+
+  .size-chip::before {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .site-header::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

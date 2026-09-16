@@ -119,6 +119,7 @@ export default function App() {
   const [fitLoading, setFitLoading] = useState(false);
   const [checkoutSummary, setCheckoutSummary] = useState(false);
   const [bagError, setBagError] = useState("");
+  const [bagPulse, setBagPulse] = useState(0);
   const quantity = cart.reduce((sum, line) => sum + line.quantity, 0);
   const total = cart.reduce(
     (sum, line) => sum + priceFor(line) * line.quantity,
@@ -171,6 +172,7 @@ export default function App() {
           )
         : [...cart, { ...c, key, quantity: 1 }],
     );
+    setBagPulse((value) => value + 1);
     setToast({
       message: `${productFor(c.productId).name} ya está en tu bolsa.`,
       undo: () => setCart(before),
@@ -291,6 +293,7 @@ export default function App() {
           <IconButton
             label={`Abrir bolsa, ${quantity} prendas`}
             count={quantity}
+            pulseKey={bagPulse}
             visibleLabel="Bolsa"
             onClick={() => setPanel("bag")}
           >
@@ -301,6 +304,7 @@ export default function App() {
 
       <main id="main">
         <section className="hero" id="inicio" aria-labelledby="hero-title">
+          <span className="header-sentinel" data-header-sentinel aria-hidden />
           <div className="hero-photo">
             <Photo
               name="editorial-hero"
@@ -356,6 +360,7 @@ export default function App() {
           onChoose={choose}
           onFilters={openFilters}
           onSearch={() => setPanel("search")}
+          selectedProductId={configuration.productId}
         />
         <ProductBuilder
           configuration={configuration}
@@ -410,37 +415,50 @@ export default function App() {
                 <summary>
                   <Truck size={19} /> Envíos y cambios <Plus size={17} />
                 </summary>
-                <p>
-                  La tienda podrá configurar entregas a domicilio, retiro y
-                  cambios. En esta demostración no se procesan pedidos ni se
-                  calcula el envío.
-                </p>
+                <div className="details-content">
+                  <div className="details-inner">
+                    <p>
+                      La tienda podrá configurar entregas a domicilio, retiro y
+                      cambios. En esta demostración no se procesan pedidos ni se
+                      calcula el envío.
+                    </p>
+                  </div>
+                </div>
               </details>
               <details>
                 <summary>
                   <Leaf size={19} /> Materiales y cuidado <Plus size={17} />
                 </summary>
-                <p>
-                  Lava las prendas delicadas en frío y déjalas secar al aire.
-                  Consulta siempre la etiqueta. La composición final se
-                  confirmará al cargar el catálogo de la tienda.
-                </p>
+                <div className="details-content">
+                  <div className="details-inner">
+                    <p>
+                      Lava las prendas delicadas en frío y déjalas secar al
+                      aire. Consulta siempre la etiqueta. La composición final
+                      se confirmará al cargar el catálogo de la tienda.
+                    </p>
+                  </div>
+                </div>
               </details>
               <details>
                 <summary>
                   <Heart size={19} /> Un estilo que sigue contigo{" "}
                   <Plus size={17} />
                 </summary>
-                <p>
-                  Guarda tus favoritos y combinaciones en este navegador. Los
-                  encontrarás aquí cuando vuelvas, sin necesidad de una cuenta.
-                </p>
-                <button
-                  className="text-link"
-                  onClick={() => setPanel("favorites")}
-                >
-                  Abrir mis favoritos <ArrowRight size={15} />
-                </button>
+                <div className="details-content">
+                  <div className="details-inner">
+                    <p>
+                      Guarda tus favoritos y combinaciones en este navegador.
+                      Los encontrarás aquí cuando vuelvas, sin necesidad de una
+                      cuenta.
+                    </p>
+                    <button
+                      className="text-link"
+                      onClick={() => setPanel("favorites")}
+                    >
+                      Abrir mis favoritos <ArrowRight size={15} />
+                    </button>
+                  </div>
+                </div>
               </details>
             </div>
             <div className="quiet-success">
@@ -683,7 +701,14 @@ export default function App() {
         <button onClick={() => setPanel("bag")}>
           <span className="mobile-bag-icon">
             <ShoppingBag size={20} />
-            {quantity > 0 && <span className="count-badge">{quantity}</span>}
+            {quantity > 0 && (
+              <span
+                key={bagPulse || "mobile-count"}
+                className={`count-badge ${bagPulse ? "badge-bounce" : ""}`}
+              >
+                {quantity}
+              </span>
+            )}
           </span>
           <span>Bolsa</span>
         </button>

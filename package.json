@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test:e2e": "node scripts/verify.mjs",
+    "test:motion": "node scripts/verify-motion.mjs",
     "audit:ui": "node scripts/audit.mjs",
     "format": "prettier --write src scripts index.html package.json tsconfig.json vite.config.ts README.md IMAGE_CREDITS.md",
     "assets": "node scripts/assets.mjs"

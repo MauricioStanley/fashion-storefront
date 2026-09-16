@@ -4,6 +4,15 @@ import { X, Check, ImageOff, RotateCcw } from "lucide-react";
 import { colors, imagePath } from "../data";
 import type { ColorId } from "../data";
 
+type PhotoProps = {
+  name: string;
+  alt: string;
+  className?: string;
+  priority?: boolean;
+  sizes?: string;
+  style?: CSSProperties;
+};
+
 export function Photo({
   name,
   alt,
@@ -11,14 +20,7 @@ export function Photo({
   priority = false,
   sizes = "(max-width: 767px) 100vw, 50vw",
   style,
-}: {
-  name: string;
-  alt: string;
-  className?: string;
-  priority?: boolean;
-  sizes?: string;
-  style?: CSSProperties;
-}) {
+}: PhotoProps) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(
     "loading",
   );
@@ -39,7 +41,15 @@ export function Photo({
           loading={priority ? "eager" : "lazy"}
           fetchPriority={priority ? "high" : "auto"}
           decoding="async"
-          onLoad={() => setStatus("loaded")}
+          onLoad={async (event) => {
+            const image = event.currentTarget;
+            try {
+              await image.decode();
+            } catch {
+              // The load event is authoritative when decode is unavailable.
+            }
+            setStatus("loaded");
+          }}
           onError={() => setStatus("error")}
         />
       )}
@@ -58,6 +68,76 @@ export function Photo({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+type CrossfadeLayer = {
+  name: string;
+  alt: string;
+  transitionKey: string;
+};
+
+export function CrossfadePhoto({
+  transitionKey,
+  ...props
+}: PhotoProps & { transitionKey: string }) {
+  const initial = useRef<CrossfadeLayer>({
+    name: props.name,
+    alt: props.alt,
+    transitionKey,
+  });
+  const currentRef = useRef(initial.current);
+  const [current, setCurrent] = useState(initial.current);
+  const [outgoing, setOutgoing] = useState<CrossfadeLayer | null>(null);
+  const [entered, setEntered] = useState(true);
+
+  useEffect(() => {
+    if (transitionKey === currentRef.current.transitionKey) return;
+    const next = { name: props.name, alt: props.alt, transitionKey };
+    let cancelled = false;
+    let frame = 0;
+    let timer = 0;
+    const preload = new Image();
+    preload.src = imagePath(props.name);
+    preload
+      .decode()
+      .catch(() => undefined)
+      .finally(() => {
+        if (cancelled) return;
+        setOutgoing(currentRef.current);
+        currentRef.current = next;
+        setCurrent(next);
+        setEntered(false);
+        frame = requestAnimationFrame(() => setEntered(true));
+        timer = window.setTimeout(() => setOutgoing(null), 280);
+      });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [props.alt, props.name, transitionKey]);
+
+  return (
+    <div className={`crossfade-photo ${entered ? "is-entered" : ""}`}>
+      {outgoing && (
+        <Photo
+          key={`outgoing-${outgoing.transitionKey}`}
+          {...props}
+          name={outgoing.name}
+          alt=""
+          priority={false}
+          className="crossfade-layer crossfade-outgoing"
+        />
+      )}
+      <Photo
+        key={`current-${current.transitionKey}`}
+        {...props}
+        name={current.name}
+        alt={current.alt}
+        className="crossfade-layer crossfade-incoming"
+      />
     </div>
   );
 }
@@ -203,6 +283,7 @@ export function IconButton({
   count,
   active = false,
   visibleLabel,
+  pulseKey,
 }: {
   label: string;
   children: ReactNode;
@@ -210,6 +291,7 @@ export function IconButton({
   count?: number;
   active?: boolean;
   visibleLabel?: string;
+  pulseKey?: number;
 }) {
   return (
     <button
@@ -219,7 +301,14 @@ export function IconButton({
     >
       {children}
       {visibleLabel && <span className="action-label">{visibleLabel}</span>}
-      {!!count && <span className="count-badge">{count}</span>}
+      {!!count && (
+        <span
+          key={pulseKey || "count"}
+          className={`count-badge ${pulseKey ? "badge-bounce" : ""}`}
+        >
+          {count}
+        </span>
+      )}
     </button>
   );
 }

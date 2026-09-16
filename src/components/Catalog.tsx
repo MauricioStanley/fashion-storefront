@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Heart,
@@ -86,12 +86,14 @@ function ProductCard({
   product: p,
   index,
   favorite,
+  selected,
   onFavorite,
   onChoose,
 }: {
   product: Product;
   index: number;
   favorite: boolean;
+  selected: boolean;
   onFavorite: () => void;
   onChoose: (p: Product, color: ColorId) => void;
 }) {
@@ -100,7 +102,12 @@ function ProductCard({
   );
   const [color, setColor] = useState<ColorId>(p.colorIds[0]);
   return (
-    <article className={`product-card card-${index}`}>
+    <article
+      className={`product-card card-${index} ${selected ? "is-selected" : ""}`}
+      data-product-id={p.id}
+      data-reveal
+      data-reveal-index={index}
+    >
       <div className="card-media">
         <div className="card-image-button">
           <Photo
@@ -165,6 +172,7 @@ export default function Catalog({
   onChoose,
   onFilters,
   onSearch,
+  selectedProductId,
 }: {
   products: Product[];
   filters: Filters;
@@ -174,9 +182,15 @@ export default function Catalog({
   onChoose: (p: Product, color: ColorId) => void;
   onFilters: () => void;
   onSearch: () => void;
+  selectedProductId: string;
 }) {
   const visible = filterProducts(products, filters, favorites);
   const [all, setAll] = useState(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const flipPositions = useRef(new Map<string, DOMRect>());
+  const flipAnimations = useRef<Animation[]>([]);
   const active =
     filters.query ||
     filters.gender !== "Todo" ||
@@ -186,6 +200,84 @@ export default function Catalog({
     filters.inStock ||
     filters.onlyFavorites ||
     filters.onlyNew;
+
+  useLayoutEffect(() => {
+    const tabs = tabsRef.current;
+    const indicator = indicatorRef.current;
+    if (!tabs || !indicator) return;
+    const syncIndicator = () => {
+      const selected = tabs.querySelector<HTMLElement>("button.active");
+      if (!selected) return;
+      indicator.style.width = `${selected.offsetWidth}px`;
+      indicator.style.transform = `translate3d(${selected.offsetLeft}px, 0, 0)`;
+    };
+    syncIndicator();
+    const resizeObserver = new ResizeObserver(syncIndicator);
+    resizeObserver.observe(tabs);
+    return () => resizeObserver.disconnect();
+  }, [filters.category]);
+
+  useLayoutEffect(() => {
+    if (!flipPositions.current.size || !gridRef.current) return;
+    flipAnimations.current.forEach((animation) => animation.cancel());
+    const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const rootStyles = getComputedStyle(document.documentElement);
+    const easing = rootStyles.getPropertyValue("--ease-out").trim();
+    const duration =
+      Number.parseFloat(rootStyles.getPropertyValue("--dur-slow")) || 400;
+    const nodes = Array.from(
+      gridRef.current.querySelectorAll<HTMLElement>("[data-product-id]"),
+    );
+    const animations: Animation[] = [];
+    nodes.forEach((node) => {
+      const id = node.dataset.productId || "";
+      const previous = flipPositions.current.get(id);
+      if (!previous) {
+        animations.push(
+          node.animate(
+            reduceMotion
+              ? [{ opacity: 0 }, { opacity: 1 }]
+              : [
+                  { opacity: 0, transform: "translate3d(0, 18px, 0)" },
+                  { opacity: 1, transform: "translate3d(0, 0, 0)" },
+                ],
+            { duration, easing, fill: "both" },
+          ),
+        );
+        return;
+      }
+      if (reduceMotion) return;
+      const next = node.getBoundingClientRect();
+      const deltaX = previous.left - next.left;
+      const deltaY = previous.top - next.top;
+      if (deltaX || deltaY) {
+        animations.push(
+          node.animate(
+            [
+              { transform: `translate3d(${deltaX}px, ${deltaY}px, 0)` },
+              { transform: "translate3d(0, 0, 0)" },
+            ],
+            { duration, easing },
+          ),
+        );
+      }
+    });
+    flipAnimations.current = animations;
+    flipPositions.current.clear();
+    return () => animations.forEach((animation) => animation.cancel());
+  }, [all]);
+
+  const toggleAll = () => {
+    const positions = new Map<string, DOMRect>();
+    gridRef.current
+      ?.querySelectorAll<HTMLElement>("[data-product-id]")
+      .forEach((node) => {
+        if (node.dataset.productId)
+          positions.set(node.dataset.productId, node.getBoundingClientRect());
+      });
+    flipPositions.current = positions;
+    setAll((value) => !value);
+  };
   const tags: { label: string; patch: Partial<Filters> }[] = [
     ...(filters.query
       ? [{ label: `Búsqueda: ${filters.query}`, patch: { query: "" } }]
@@ -239,7 +331,17 @@ export default function Catalog({
         </a>
       </div>
       <div className="catalog-toolbar">
-        <div className="category-tabs" role="group" aria-label="Categorías">
+        <div
+          ref={tabsRef}
+          className="category-tabs"
+          role="group"
+          aria-label="Categorías"
+        >
+          <span
+            ref={indicatorRef}
+            className="category-indicator"
+            aria-hidden="true"
+          />
           {categories.map((category) => (
             <button
               key={category}
@@ -309,6 +411,7 @@ export default function Catalog({
       )}
       {visible.length ? (
         <div
+          ref={gridRef}
           className={`product-grid ${visible.length < 4 ? "filtered-grid" : ""}`}
         >
           {(all ? visible : visible.slice(0, 4)).map((p, index) => (
@@ -317,6 +420,7 @@ export default function Catalog({
               product={p}
               index={index}
               favorite={favorites.includes(p.id)}
+              selected={selectedProductId === p.id}
               onFavorite={() => onFavorite(p.id)}
               onChoose={onChoose}
             />
@@ -362,7 +466,7 @@ export default function Catalog({
           <span>
             {all ? visible.length : 4} de {visible.length} prendas
           </span>
-          <button className="secondary-button" onClick={() => setAll(!all)}>
+          <button className="secondary-button" onClick={toggleAll}>
             {all ? "Mostrar selección" : "Ver toda la colección"}{" "}
             <ArrowUpRight size={17} />
           </button>
